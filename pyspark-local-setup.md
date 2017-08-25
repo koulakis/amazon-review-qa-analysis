@@ -33,7 +33,6 @@
         
 4. The `pyspark` command enters per default the pyspark repl on the terminal. To run it on jupyter notebook you need to pass some environmental variables. One way to make this efficient is to append the following lines, again in `~/.bashrc`:
     ```
-    alias pyspark-notebook="PYSPARK_DRIVER_PYTHON=jupyter PYSPARK_DRIVER_PYTHON_OPTS
-='notebook' pyspark"
+    alias pyspark-notebook="PYSPARK_DRIVER_PYTHON=jupyter PYSPARK_DRIVER_PYTHON_OPTS='notebook' pyspark"
     ```
     Then you can launch it with the command `pyspark-notebook`.
