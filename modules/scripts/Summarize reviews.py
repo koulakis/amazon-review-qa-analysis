@@ -3,14 +3,14 @@
 
 # # Summarize the reviews
 
-# In[2]:
+# In[36]:
 
-all_reviews = (spark
-    .read
-    .json('../../data/raw_data/reviews_Musical_Instruments_5.json.gz'))
+# all_reviews = (spark
+#     .read
+#     .json('../../data/raw_data/reviews_Musical_Instruments_5.json.gz'))
 
 
-# In[3]:
+# In[37]:
 
 from pyspark.sql.functions import col, expr, udf, trim
 from pyspark.sql.types import IntegerType
@@ -23,24 +23,24 @@ reviews = (all_reviews
     .na.fill({ 'reviewerName': 'Unknown' })
     .filter(col('overall').isin([1, 2, 5]))
     .withColumn('label', make_binary(col('overall')))
-    .select(col('label').cast('int'), remove_punctuation('summary').alias('summary'))
-    .filter(trim(col('summary')) != ''))
+    .select(col('label').cast('int'), remove_punctuation('reviewText').alias('review'))
+    .filter(trim(col('review')) != ''))
 
 
 # ## Splitting data and balancing skewness
 
-# In[4]:
+# In[38]:
 
 train, test = reviews.randomSplit([.8, .2], seed=5436L)
 
 
-# In[5]:
+# In[39]:
 
 def multiply_dataset(dataset, n):
     return dataset if n <= 1 else dataset.union(multiply_dataset(dataset, n - 1))
 
 
-# In[6]:
+# In[40]:
 
 reviews_good = train.filter('label == 1')
 reviews_bad = train.filter('label == 0')
@@ -53,7 +53,7 @@ train_reviews = reviews_bad_multiplied.union(reviews_good)
 
 # ## Benchmark: predict by distribution
 
-# In[7]:
+# In[41]:
 
 accuracy = reviews_good.count() / float(train_reviews.count())
 print('Always predicting 5 stars accuracy: {0}'.format(accuracy))
@@ -61,13 +61,13 @@ print('Always predicting 5 stars accuracy: {0}'.format(accuracy))
 
 # ## Learning pipeline
 
-# In[8]:
+# In[42]:
 
 from pyspark.ml.feature import Tokenizer, HashingTF, IDF, StopWordsRemover
 from pyspark.ml.pipeline import Pipeline
 from pyspark.ml.classification import LogisticRegression
 
-tokenizer = Tokenizer(inputCol='summary', outputCol='words')
+tokenizer = Tokenizer(inputCol='review', outputCol='words')
 
 pipeline = Pipeline(stages=[
     tokenizer, 
@@ -80,12 +80,12 @@ pipeline = Pipeline(stages=[
 
 # ## Testing the model accuracy
 
-# In[9]:
+# In[43]:
 
 model = pipeline.fit(train_reviews)
 
 
-# In[10]:
+# In[44]:
 
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
 
@@ -95,7 +95,7 @@ BinaryClassificationEvaluator().evaluate(prediction)
 
 # ## Using model to extract the most predictive words
 
-# In[11]:
+# In[45]:
 
 from pyspark.sql.functions import explode
 import pyspark.sql.functions as F
@@ -103,11 +103,11 @@ from pyspark.sql.types import FloatType
 
 words = (tokenizer
     .transform(reviews)
-    .select(explode(col('words')).alias('summary')))
+    .select(explode(col('words')).alias('review')))
 
 predictors = (model
     .transform(words)
-    .select(col('summary').alias('word'), 'probability'))
+    .select(col('review').alias('word'), 'probability'))
 
 first = udf(lambda x: x[0].item(), FloatType())
 second = udf(lambda x: x[1].item(), FloatType())
@@ -131,13 +131,13 @@ negative_predictive_words = (predictive_words
     .sort('neg_prob', ascending=False))
 
 
-# In[18]:
+# In[46]:
 
 import pandas as pd
-pd.set_option('display.max_rows', 1000)
+pd.set_option('display.max_rows', 100)
 
-pd.concat([
-    positive_predictive_words.limit(1000).toPandas(),
-    negative_predictive_words.limit(1000).toPandas() ],
+pd.concat(
+    [ positive_predictive_words.limit(100).toPandas(),
+      negative_predictive_words.limit(100).toPandas() ],
     axis=1)
 
